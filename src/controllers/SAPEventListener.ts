@@ -131,21 +131,21 @@ export class SAPEventListener {
         }
         for (const { id, serial } of fetchedIdsToProcess) {
             // const paramObj: {name: string, type: sql.ISqlTypeWithLength, value: any}[] = [{ name: 'id', type: sql.VarChar(50), value: id }];
-            await this.executeQuery(livePool, `
+            if (!(await this.executeQuery(livePool, `
                 UPDATE [@FirstratesTP] 
                 SET U_Amount = NULL
                 WHERE U_Amount = 'NaN' AND U_BN IN ('${id}');
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 UPDATE [@FirstratesTP] 
                 SET U_AddlAmount = NULL
                 WHERE U_AddlAmount = 'NaN' AND U_BN IN ('${id}');
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 -----> SUMMARY
                 DELETE FROM SUMMARY_EXTRACT WHERE U_BookingNumber IN ('${id}');
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 INSERT INTO SUMMARY_EXTRACT
                 SELECT
                     X.Code, X.U_BookingNumber, X.U_BookingDate, X.U_ClientName, X.U_SAPClient, X.U_ClientVatStatus, X.U_TruckerName, X.U_SAPTrucker, X.U_TruckerVatStatus, X.U_VehicleTypeCap, X.U_ISLAND, X.U_ISLAND_D, X.U_IFINTERISLAND, X.U_DeliveryStatus, X.U_DeliveryDateDTR,
@@ -154,12 +154,12 @@ export class SAPEventListener {
                     X.U_PaymentStatus, X.U_ProofOfPayment, X.U_TotalRecClients, X.U_TotalPayable, X.U_PVNo, X.U_TotalAR, X.U_VarAR, X.U_TotalAP, X.U_VarTP, X.U_APDocNum, X.U_ARDocNum, X.U_DeliveryOrigin, X.U_Destination, X.U_PODStatusDetail, X.U_Remarks, X.U_WaybillNo, X.U_ServiceType,
                     X.U_InvoiceNo
                 FROM [dbo].fetchPctpDataRows('SUMMARY', '${id}', DEFAULT) X;
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 -----> POD
                 DELETE FROM POD_EXTRACT WHERE U_BookingNumber IN ('${id}');
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 INSERT INTO POD_EXTRACT
                 SELECT
                     X.DisableTableRow, X.Code, X.U_BookingDate, X.U_BookingNumber, X.U_PODSONum, X.U_ClientName, X.U_SAPClient, X.U_TruckerName, X.U_ISLAND, X.U_ISLAND_D, 
@@ -175,12 +175,12 @@ export class SAPEventListener {
                     X.U_SeriesNo, X.U_OutletNo, X.U_CBM, X.U_SI_DRNo, X.U_DeliveryMode, X.U_SourceWhse, X.U_SONo, X.U_NameCustomer, X.U_CategoryDR, X.U_IDNumber, X.U_ApprovalStatus, 
                     X.U_TotalInvAmount
                 FROM [dbo].fetchPctpDataRows('POD', '${id}', DEFAULT) X;
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 -----> BILLING
                 DELETE FROM BILLING_EXTRACT WHERE U_BookingNumber IN ('${id}');
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 INSERT INTO BILLING_EXTRACT
                 SELECT
                     X.U_BookingNumber, X.DisableTableRow, X.DisableSomeFields, X.Code, X.U_BookingId, X.U_BookingDate, X.U_PODNum, X.U_PODSONum, X.U_CustomerName, X.U_SAPClient, X.U_PlateNumber, X.U_VehicleTypeCap, X.U_DeliveryStatus, X.U_DeliveryDatePOD,
@@ -191,12 +191,12 @@ export class SAPEventListener {
                     X.U_Destination, X.U_OtherPODDoc, X.U_RemarksPOD, X.U_PODStatusDetail, X.U_BTRemarks, X.U_DestinationClient, X.U_Remarks, X.U_Attachment, X.U_SI_DRNo, X.U_TripTicketNo, X.U_WaybillNo, X.U_ShipmentManifestNo, X.U_OutletNo, X.U_CBM,
                     X.U_DeliveryMode, X.U_SourceWhse, X.U_SONo, X.U_NameCustomer, X.U_CategoryDR, X.U_IDNumber, X.U_Status, X.U_TotalInvAmount
                 FROM [dbo].fetchPctpDataRows('BILLING', '${id}', DEFAULT) X;
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 -----> TP
                 DELETE FROM TP_EXTRACT WHERE U_BookingNumber IN ('${id}');
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 INSERT INTO TP_EXTRACT
                 SELECT
                     '' AS WaivedDaysx, '' AS xHolidayOrWeekend,
@@ -209,12 +209,12 @@ export class SAPEventListener {
                     X.U_RemarksPOD, X.U_GroupProject, X.U_Destination, X.U_Remarks, X.U_Attachment, X.U_TripTicketNo, X.U_WaybillNo, X.U_ShipmentManifestNo, X.U_DeliveryReceiptNo, X.U_SeriesNo, X.U_ActualPaymentDate, X.U_PaymentReference, 
                     X.U_PaymentStatus
                 FROM [dbo].fetchPctpDataRows('TP', '${id}', DEFAULT) X;
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 -----> PRICING
                 DELETE FROM PRICING_EXTRACT WHERE U_BookingNumber IN ('${id}');
-            `);
-            await this.executeQuery(livePool, `
+            `))) continue;
+            if (!(await this.executeQuery(livePool, `
                 INSERT INTO PRICING_EXTRACT
                 SELECT
                     X.U_BookingNumber, X.DisableSomeFields, X.DisableSomeFields2, X.Code, X.U_BookingId, X.U_BookingDate, X.U_PODNum, X.U_CustomerName, X.U_ClientTag, X.U_ClientProject, X.U_TruckerName, X.U_TruckerTag, X.U_VehicleTypeCap, X.U_DeliveryStatus,
@@ -224,7 +224,7 @@ export class SAPEventListener {
                     X.U_BillingActualDemurrage, X.U_ActualAddCharges, X.U_TotalRecClients, X.U_TotalAR, X.U_VarAR, X.U_PODSONum, X.U_ActualRates, X.U_TPRateAdjustments, X.U_TPActualDemurrage, X.U_ActualCharges, X.U_TPBoomTruck2, X.U_OtherCharges,
                     X.U_TotalPayable, X.U_PVNo, X.U_TotalAP, X.U_VarTP, X.U_APDocNum, X.U_Paid, X.U_DocNum, X.U_DeliveryOrigin, X.U_Destination, X.U_RemarksDTR, X.U_RemarksPOD, X.U_PODDocNum
                 FROM [dbo].fetchPctpDataRows('PRICING', '${id}', DEFAULT) X;
-            `);
+            `))) continue;
             SAPEventListener.processedIds.push(`${id}-${serial}`);
         }
         console.log(SAPEventListener.processedIds, SAPEventListener.processedIds.length, (new Date()).toString());
