@@ -25,7 +25,7 @@ export class SAPEventListener {
                                 pool.query(`
                                     SELECT
                                         TP.U_BookingNumber AS id,
-                                        CONCAT(FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
+                                        CONCAT('AP-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
                                     FROM (
                                     SELECT DocEntry, U_PVNo, UpdateDate, UpdateTS
                                     FROM OPCH WITH(NOLOCK)
@@ -56,7 +56,7 @@ export class SAPEventListener {
                                     
                                     SELECT
                                         line.ItemCode AS id,
-                                        CONCAT(FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
+                                        CONCAT('SO-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
                                     FROM (
                                     SELECT DocEntry, UpdateDate, UpdateTS
                                     FROM ORDR WITH(NOLOCK)
@@ -70,7 +70,7 @@ export class SAPEventListener {
                                     
                                     SELECT
                                         line.ItemCode AS id,
-                                        CONCAT(FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
+                                        CONCAT('AR-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
                                     FROM (
                                     SELECT DocEntry, UpdateDate, UpdateTS
                                     FROM OINV WITH(NOLOCK)
@@ -84,7 +84,7 @@ export class SAPEventListener {
 
                                     SELECT 
                                         ItemCode AS id,
-                                        CONCAT(FORMAT(CreateDate, 'yyyyMMdd'), CreateTS) AS serial
+                                        CONCAT('BN-', FORMAT(CreateDate, 'yyyyMMdd'), CreateTS) AS serial
                                     FROM OITM 
                                     WHERE ItemCode IS NOT NULL
                                     AND CAST(CreateDate AS date) = CAST(GETDATE() AS date)
