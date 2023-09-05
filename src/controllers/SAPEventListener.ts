@@ -1,14 +1,24 @@
 import sql from 'mssql';
 import TimeUtil from '../utils/TimeUtil';
 import { EventId } from '../types/EventEntity';
+import { StorageFactory } from '../factory/StorageFactory';
+import { PersistedStorge } from '../factory/storage-interface';
 
 export class SAPEventListener {
+    public static storageFactory: StorageFactory;
+    public static processedIdStorage: PersistedStorge<string>;
     public static livePool: sql.ConnectionPool;
     public static processedIds: String[] = []; //`${id}-${serial}`
     private readonly timeOut: number = 10000;
     private monitoringTime: number = (new Date()).setHours(0,0,0,0);
     constructor(livePool: sql.ConnectionPool) {
         SAPEventListener.livePool = livePool;
+        SAPEventListener.storageFactory = new StorageFactory('sapEventListener');
+        SAPEventListener.storageFactory.init().then(res => {
+            SAPEventListener.storageFactory.factory<string>('processedIds', []).then(storage => {
+                SAPEventListener.processedIdStorage = storage;
+            })
+        })
     }
     public async run() {
         while (true) {
@@ -99,6 +109,81 @@ export class SAPEventListener {
                                         OR NOT EXISTS(SELECT 1 FROM TP_EXTRACT WITH(NOLOCK) WHERE U_BookingId = ItemCode)
                                         OR NOT EXISTS(SELECT 1 FROM PRICING_EXTRACT WITH(NOLOCK) WHERE U_BookingId = ItemCode)
                                     )
+
+                                    UNION
+
+                                    SELECT Z.id, Z.serial FROM (
+                                        SELECT 
+                                            U_BookingNumber AS id,
+                                            CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                                        FROM SUMMARY_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        UNION
+                                        SELECT 
+                                            U_BookingNumber AS id,
+                                            CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                                        FROM POD_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        UNION
+                                        SELECT 
+                                            U_BookingNumber AS id,
+                                            CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                                        FROM BILLING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        UNION
+                                        SELECT 
+                                            U_BookingNumber AS id,
+                                            CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                                        FROM TP_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        UNION
+                                        SELECT 
+                                            U_BookingNumber AS id,
+                                            CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                                        FROM PRICING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                    ) Z
+                                    LEFT JOIN
+                                    (
+                                        SELECT X.id,
+                                        CONCAT(CASE
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_POD] WHERE U_BookingNumber = X.id) > 1 THEN 'POD '
+                                             ELSE ''
+                                         END,
+                                         CASE
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_BILLING] WHERE U_BookingId = X.id) > 1 THEN 'BILLING '
+                                             ELSE ''
+                                         END,
+                                         CASE
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_TP] WHERE U_BookingId = X.id) > 1 THEN 'TP '
+                                             ELSE ''
+                                         END,
+                                         CASE
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_PRICING] WHERE U_BookingId = X.id) > 1 THEN 'PRICING '
+                                             ELSE ''
+                                         END) AS DuplicateInMainTable
+                                        FROM (SELECT 
+                                                U_BookingNumber as id
+                                            FROM SUMMARY_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            UNION
+                                            SELECT 
+                                                U_BookingNumber as id
+                                            FROM POD_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            UNION
+                                            SELECT 
+                                                U_BookingNumber as id
+                                            FROM BILLING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            UNION
+                                            SELECT 
+                                                U_BookingNumber as id
+                                            FROM TP_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            UNION
+                                            SELECT 
+                                                U_BookingNumber as id
+                                            FROM PRICING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        ) X
+                                        WHERE X.id IS NOT NULL
+                                    ) Y ON Z.id = Y.id
+                                    WHERE Y.id IS NOT NULL 
+                                    AND (
+                                        Y.DuplicateInMainTable = '' 
+                                        OR Y.DuplicateInMainTable IS NULL
+                                    )
                                 `, async (err: Error | undefined, recordset: sql.IResult<unknown> | undefined) => {
                                     if (err) {
                                         console.log(err)
@@ -123,14 +208,16 @@ export class SAPEventListener {
     }
 
     private async processFetchedIds(livePool: sql.ConnectionPool, fetchedIds: EventId[]) {
+        const newProcessedIds = await SAPEventListener.processedIdStorage.get();
         const fetchedIdsToProcess: EventId[] = [];
         for (const eventId of fetchedIds as EventId[]) {
             const { id, serial } = eventId;
-            if (SAPEventListener.processedIds.includes(`${id}-${serial}`)) continue;
+            if (newProcessedIds.includes(`${id}-${serial}`)) continue;
             fetchedIdsToProcess.push(eventId);
         }
         for (const { id, serial } of fetchedIdsToProcess) {
             // const paramObj: {name: string, type: sql.ISqlTypeWithLength, value: any}[] = [{ name: 'id', type: sql.VarChar(50), value: id }];
+            console.log(`processing... ${id}-${serial}`, (new Date()).toString())
             if (!(await this.executeQuery(livePool, `
                 UPDATE [@FirstratesTP] 
                 SET U_Amount = NULL
@@ -225,9 +312,11 @@ export class SAPEventListener {
                     X.U_TotalPayable, X.U_PVNo, X.U_TotalAP, X.U_VarTP, X.U_APDocNum, X.U_Paid, X.U_DocNum, X.U_DeliveryOrigin, X.U_Destination, X.U_RemarksDTR, X.U_RemarksPOD, X.U_PODDocNum
                 FROM [dbo].fetchPctpDataRows('PRICING', '${id}', DEFAULT) X;
             `))) continue;
-            SAPEventListener.processedIds.push(`${id}-${serial}`);
+            console.log(`completed, storing... ${id}-${serial}`, (new Date()).toString())
+            newProcessedIds.push(`${id}-${serial}`);
         }
-        console.log(SAPEventListener.processedIds, SAPEventListener.processedIds.length, (new Date()).toString());
+        await SAPEventListener.processedIdStorage.set(newProcessedIds);
+        console.log(newProcessedIds.length, (new Date()).toString());
     }
 
     public async executeQuery(pool: sql.ConnectionPool, query: string, params?: {name: string, type: sql.ISqlTypeWithLength, value: any}[]): Promise<boolean> {
@@ -268,7 +357,7 @@ export class SAPEventListener {
                 } else {
                     pool.query(query, async (err: Error | undefined) => {
                         if (err) {
-                            console.log(err)
+                            console.log('execute query error', err)
                             resolve(false);
                         }
                         resolve(true);
