@@ -222,6 +222,8 @@ export class SAPEventListener {
             if (newProcessedIds.includes(`${id}-${serial}`)) continue;
             fetchedIdsToProcess.push(eventId);
         }
+        if (!!fetchedIdsToProcess) console.log('fetchedIdsToProcess length: ', fetchedIdsToProcess.length)
+        let fetchedIdsToProcessLength = fetchedIdsToProcess.length;
         for (const { id, serial } of fetchedIdsToProcess) {
             // const paramObj: {name: string, type: sql.ISqlTypeWithLength, value: any}[] = [{ name: 'id', type: sql.VarChar(50), value: id }];
             console.log(`processing... ${id}-${serial}`, (new Date()).toString())
@@ -320,9 +322,10 @@ export class SAPEventListener {
                 FROM [dbo].fetchPctpDataRows('PRICING', '${id}', DEFAULT) X;
             `))) continue;
             console.log(`completed, storing... ${id}-${serial}`, (new Date()).toString())
+            console.log(`remaining... ${--fetchedIdsToProcessLength}`)
             newProcessedIds.push(`${id}-${serial}`);
         }
-        await SAPEventListener.processedIdStorage.set(newProcessedIds);
+        if (!!newProcessedIds) await SAPEventListener.processedIdStorage.set(newProcessedIds);
         console.log('current processedIdStorage length: ', newProcessedIds.length, (new Date()).toString());
     }
 
