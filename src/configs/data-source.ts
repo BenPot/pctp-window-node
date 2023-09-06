@@ -11,7 +11,7 @@ const liveConfig: string | sql.config = {
         min: 0,
         idleTimeoutMillis: 30000
     },
-    requestTimeout: process.env.DB_REQUEST_TIMEOUT,
+    requestTimeout: parseInt(process.env.DB_REQUEST_TIMEOUT || '', 10),
     options: {
         trustServerCertificate: true // change to true for local dev / self-signed certs
     }
