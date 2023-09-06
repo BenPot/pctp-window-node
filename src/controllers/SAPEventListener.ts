@@ -28,10 +28,10 @@ export class SAPEventListener {
             }
             await ((livePool: sql.ConnectionPool, sapEventListener: SAPEventListener): Promise<void> => {
                 const fetchedIds: EventId[] = [];
-                return new Promise(resolve => {
+                return new Promise(resolve1 => {
                     livePool.connect().then(async function(pool) {
                         await ((pool: sql.ConnectionPool): Promise<void> => {
-                            return new Promise(resolve => {
+                            return new Promise(resolve2 => {
                                 pool.query(`
                                     SELECT
                                         TP.U_BookingNumber AS id,
@@ -187,17 +187,17 @@ export class SAPEventListener {
                                 `, async (err: Error | undefined, recordset: sql.IResult<unknown> | undefined) => {
                                     if (err) {
                                         console.log(err)
-                                        return;
+                                        resolve2();
                                     }
                                     if (!!recordset) {
                                         recordset.recordset.forEach(eventId => fetchedIds.push(eventId as EventId));
                                     }
-                                    resolve();
+                                    resolve2();
                                 });
                             })
                         })(pool);
-                        await sapEventListener.processFetchedIds(pool, fetchedIds);
-                        resolve()
+                        if (!!fetchedIds) await sapEventListener.processFetchedIds(pool, fetchedIds);
+                        resolve1()
                     }).catch(function (err) {
                         console.error('Error creating connection pool', err)
                     });
