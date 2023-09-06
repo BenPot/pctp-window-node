@@ -5,6 +5,7 @@ import { StorageFactory } from '../factory/StorageFactory';
 import { PersistedStorge } from '../factory/storage-interface';
 
 export class SAPEventListener {
+    public static freshStart: boolean = true;
     public static storageFactory: StorageFactory;
     public static processedIdStorage: PersistedStorge<string>;
     public static livePool: sql.ConnectionPool;
@@ -208,7 +209,12 @@ export class SAPEventListener {
     }
 
     private async processFetchedIds(livePool: sql.ConnectionPool, fetchedIds: EventId[]) {
-        const newProcessedIds = await SAPEventListener.processedIdStorage.get();
+        if (SAPEventListener.freshStart) {
+            console.log('SAPEventListener is waiting for 15 seconds, happens only on fresh start...')
+            await TimeUtil.timeout(15000);
+            SAPEventListener.freshStart = false;
+        }
+        const newProcessedIds: string[] = await SAPEventListener.processedIdStorage.get();
         const fetchedIdsToProcess: EventId[] = [];
         for (const eventId of fetchedIds as EventId[]) {
             const { id, serial } = eventId;
