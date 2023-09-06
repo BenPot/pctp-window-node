@@ -213,6 +213,7 @@ export class SAPEventListener {
             console.log('SAPEventListener is waiting for 15 seconds, happens only on fresh start...')
             await TimeUtil.timeout(15000);
             SAPEventListener.freshStart = false;
+            console.log('current processedIdStorage length: ', (await SAPEventListener.processedIdStorage.get()).length)
         }
         const newProcessedIds: string[] = await SAPEventListener.processedIdStorage.get();
         const fetchedIdsToProcess: EventId[] = [];
@@ -322,7 +323,7 @@ export class SAPEventListener {
             newProcessedIds.push(`${id}-${serial}`);
         }
         await SAPEventListener.processedIdStorage.set(newProcessedIds);
-        console.log(newProcessedIds.length, (new Date()).toString());
+        console.log('current processedIdStorage length: ', newProcessedIds.length, (new Date()).toString());
     }
 
     public async executeQuery(pool: sql.ConnectionPool, query: string, params?: {name: string, type: sql.ISqlTypeWithLength, value: any}[]): Promise<boolean> {
