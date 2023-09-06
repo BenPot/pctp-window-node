@@ -95,7 +95,7 @@ export class SAPEventListener {
                                     SELECT 
                                         ItemCode AS id,
                                         CONCAT('BN-', FORMAT(CreateDate, 'yyyyMMdd'), CreateTS) AS serial
-                                    FROM OITM 
+                                    FROM OITM WITH(NOLOCK) 
                                     WHERE ItemCode IS NOT NULL
                                     AND CAST(CreateDate AS date) = CAST(GETDATE() AS date)
                                     AND (
@@ -116,66 +116,66 @@ export class SAPEventListener {
                                         SELECT 
                                             U_BookingNumber AS id,
                                             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-                                        FROM SUMMARY_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        FROM SUMMARY_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                         UNION
                                         SELECT 
                                             U_BookingNumber AS id,
                                             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-                                        FROM POD_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        FROM POD_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                         UNION
                                         SELECT 
                                             U_BookingNumber AS id,
                                             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-                                        FROM BILLING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        FROM BILLING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                         UNION
                                         SELECT 
                                             U_BookingNumber AS id,
                                             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-                                        FROM TP_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        FROM TP_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                         UNION
                                         SELECT 
                                             U_BookingNumber AS id,
                                             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-                                        FROM PRICING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                        FROM PRICING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                     ) Z
                                     LEFT JOIN
                                     (
                                         SELECT X.id,
                                         CONCAT(CASE
-                                             WHEN (SELECT COUNT(*) FROM [@PCTP_POD] WHERE U_BookingNumber = X.id) > 1 THEN 'POD '
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_POD] WITH(NOLOCK) WHERE U_BookingNumber = X.id) > 1 THEN 'POD '
                                              ELSE ''
                                          END,
                                          CASE
-                                             WHEN (SELECT COUNT(*) FROM [@PCTP_BILLING] WHERE U_BookingId = X.id) > 1 THEN 'BILLING '
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_BILLING] WITH(NOLOCK) WHERE U_BookingId = X.id) > 1 THEN 'BILLING '
                                              ELSE ''
                                          END,
                                          CASE
-                                             WHEN (SELECT COUNT(*) FROM [@PCTP_TP] WHERE U_BookingId = X.id) > 1 THEN 'TP '
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_TP] WITH(NOLOCK) WHERE U_BookingId = X.id) > 1 THEN 'TP '
                                              ELSE ''
                                          END,
                                          CASE
-                                             WHEN (SELECT COUNT(*) FROM [@PCTP_PRICING] WHERE U_BookingId = X.id) > 1 THEN 'PRICING '
+                                             WHEN (SELECT COUNT(*) FROM [@PCTP_PRICING] WITH(NOLOCK) WHERE U_BookingId = X.id) > 1 THEN 'PRICING '
                                              ELSE ''
                                          END) AS DuplicateInMainTable
                                         FROM (SELECT 
                                                 U_BookingNumber as id
-                                            FROM SUMMARY_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            FROM SUMMARY_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                             UNION
                                             SELECT 
                                                 U_BookingNumber as id
-                                            FROM POD_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            FROM POD_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                             UNION
                                             SELECT 
                                                 U_BookingNumber as id
-                                            FROM BILLING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            FROM BILLING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                             UNION
                                             SELECT 
                                                 U_BookingNumber as id
-                                            FROM TP_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            FROM TP_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                             UNION
                                             SELECT 
                                                 U_BookingNumber as id
-                                            FROM PRICING_EXTRACT GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+                                            FROM PRICING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
                                         ) X
                                         WHERE X.id IS NOT NULL
                                     ) Y ON Z.id = Y.id
