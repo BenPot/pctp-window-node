@@ -7,6 +7,7 @@ import { SocketEventType, SocketMessageType } from './src/const/socket-message-a
 import { v4 as uuidv4 } from 'uuid';
 import { SAPEventListener } from './src/controllers/SAPEventListener';
 import { livePool } from './src/configs/data-source';
+import SSEController from './src/controllers/SSEController';
 
 const port = process.env.PORT;
 
@@ -20,6 +21,7 @@ const server = app.listen(port, () => {
 
 const sapEventListener: SAPEventListener = new SAPEventListener(livePool);
 sapEventListener.run();
+SSEController.run();
 
 //initialize the WebSocket server instance
 const wsServer = new WebSocket.Server({ server });
