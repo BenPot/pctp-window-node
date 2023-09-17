@@ -3,6 +3,7 @@ import errorhandler from 'strong-error-handler';
 import express, { Express, NextFunction, Request, Response } from 'express';
 import { tab } from '../routes/tab';
 import dotenv from 'dotenv';
+import { sse } from '../routes/sse';
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use('/tab', tab);
+app.use('/sse', sse);
 
 app.use(errorhandler({
     debug: process.env.ENV !== 'prod',
