@@ -535,20 +535,6 @@ export class SAPEventListener {
             for (const { id, serial } of fetchedIdsToProcess) {
                 // prioritizing adhocs
                 // if (!!SAPEventListener.newAdhocIds && SAPEventListener.newAdhocIds.)
-                for (const { id, serial } of fetchedIdsToProcess) {
-                    // const paramObj: {name: string, type: sql.ISqlTypeWithLength, value: any}[] = [{ name: 'id', type: sql.VarChar(50), value: id }];
-                    timer.reset();
-                    console.log(`processing... ${id}-${serial}`, (new Date()).toString())
-                    if (await this.refreshIds(livePool, [id])) {
-                        console.log(`COMPLETED, storing... ${id}-${serial}`, (new Date()).toString())
-                        processedIdsStorage.push(`${id}-${serial}`);
-                        SAPEventListener.newProcessedIds.push(`${id}-${serial}`);
-                    } else {
-                        console.log(`FAILED! ${id}-${serial}`, (new Date()).toString())
-                    }
-                    console.log(`elapsed time... ${timer.getElapsedTime()} sec`);
-                    console.log(`remaining... ${--fetchedIdsToProcessLength}`)
-                }
                 timer.reset();
                 console.log(`processing... ${id}-${serial}`, (new Date()).toString())
                 if (await this.refreshIds(livePool, [id])) {
