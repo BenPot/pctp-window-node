@@ -96,8 +96,8 @@ export class SAPEventListener {
             FROM (
             SELECT DocEntry, DocNum, U_PVNo, UpdateDate, UpdateTS
             FROM OPCH WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(CAST('2023-09-10' AS DATE) AS date)
-            OR CAST(UpdateDate AS date) = CAST(CAST('2023-09-10' AS DATE) AS date)
+            WHERE CAST(CreateDate AS date) = CAST(GETDATE() AS date)
+            OR CAST(UpdateDate AS date) = CAST(GETDATE() AS date)
             ) head
             LEFT JOIN (
                 SELECT DocEntry, ItemCode
@@ -129,8 +129,8 @@ export class SAPEventListener {
             FROM (
             SELECT DocEntry, DocNum, UpdateDate, UpdateTS
             FROM ORDR WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(CAST('2023-09-10' AS DATE) AS date)
-            OR CAST(UpdateDate AS date) = CAST(CAST('2023-09-10' AS DATE) AS date)
+            WHERE CAST(CreateDate AS date) = CAST(GETDATE() AS date)
+            OR CAST(UpdateDate AS date) = CAST(GETDATE() AS date)
             ) head
             LEFT JOIN (
                 SELECT DocEntry, ItemCode
@@ -145,8 +145,8 @@ export class SAPEventListener {
             FROM (
             SELECT DocEntry, DocNum, UpdateDate, UpdateTS
             FROM OINV WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(CAST('2023-09-10' AS DATE) AS date)
-            OR CAST(UpdateDate AS date) = CAST(CAST('2023-09-10' AS DATE) AS date)
+            WHERE CAST(CreateDate AS date) = CAST(GETDATE() AS date)
+            OR CAST(UpdateDate AS date) = CAST(GETDATE() AS date)
             ) head
             LEFT JOIN (
                 SELECT DocEntry, ItemCode
@@ -163,7 +163,7 @@ export class SAPEventListener {
                 FROM OITM WITH(NOLOCK) 
             ) head
             WHERE head.ItemCode IS NOT NULL
-            AND CAST(head.CreateDate AS date) = CAST(CAST('2023-09-10' AS DATE) AS date)
+            AND CAST(head.CreateDate AS date) = CAST(GETDATE() AS date)
             AND (
                 EXISTS(SELECT 1 FROM [@PCTP_POD] WITH(NOLOCK) WHERE U_BookingNumber = head.ItemCode)
                 OR EXISTS(SELECT 1 FROM [@PCTP_PRICING] WITH(NOLOCK) WHERE U_BookingId = head.ItemCode)
@@ -176,27 +176,27 @@ export class SAPEventListener {
         //     SELECT Z.id, Z.serial FROM (
         //         SELECT 
         //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //         FROM SUMMARY_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
         //         UNION
         //         SELECT 
         //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //         FROM POD_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
         //         UNION
         //         SELECT 
         //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //         FROM BILLING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
         //         UNION
         //         SELECT 
         //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //         FROM TP_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
         //         UNION
         //         SELECT 
         //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //         FROM PRICING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
         //     ) Z
         //     LEFT JOIN
@@ -249,7 +249,7 @@ export class SAPEventListener {
         // const sbdiEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         SE.U_BookingNumber as id,
-        //         CONCAT('SBDI-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('SBDI-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingNumber, U_BillingStatus, U_InvoiceNo, U_PODSONum, U_ARDocNum
         //         FROM SUMMARY_EXTRACT WITH(NOLOCK)
@@ -315,7 +315,7 @@ export class SAPEventListener {
         // const bvnrEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         T0.U_BookingNumber as id,
-        //         CONCAT('B-TBVNR-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('B-TBVNR-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingNumber, U_PODStatusDetail
         //         FROM [dbo].[@PCTP_POD] WITH(NOLOCK)
@@ -329,7 +329,7 @@ export class SAPEventListener {
         // const tvnrEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         T0.U_BookingNumber as id,
-        //         CONCAT('T-TBVNR-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('T-TBVNR-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //     FROM [dbo].[@PCTP_POD] T0 WITH(NOLOCK)
         //     WHERE 1=1
         //     AND (CAST(T0.U_PODStatusDetail as nvarchar(100)) LIKE '%Verified%')
@@ -340,7 +340,7 @@ export class SAPEventListener {
         // const bpdiEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         BE.U_BookingId AS id,
-        //         CONCAT('B-BTPDI-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('B-BTPDI-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingId, U_GrossInitialRate, U_Demurrage, U_AddCharges
         //         FROM BILLING_EXTRACT WITH(NOLOCK)
@@ -370,7 +370,7 @@ export class SAPEventListener {
         // const tpdiEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         TE.U_BookingId AS id,
-        //         CONCAT('T-BTPDI-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('T-BTPDI-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingId, U_GrossTruckerRates, U_GrossTruckerRatesN, U_RateBasis, U_Demurrage,
         //         U_AddtlDrop, U_BoomTruck, U_Manpower, U_BackLoad, U_Addtlcharges, U_DemurrageN, U_AddtlChargesN
@@ -442,7 +442,7 @@ export class SAPEventListener {
         const ptfEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT
                 POD.U_BookingNumber as id,
-                CONCAT('PTF-', FORMAT(CAST('2023-09-10' AS DATE), 'yyyyMMddhhmmss')) AS serial
+                CONCAT('PTF-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
             FROM (
                 SELECT U_BookingNumber, U_PTFNo
                 FROM [dbo].[@PCTP_POD] WITH(NOLOCK)
