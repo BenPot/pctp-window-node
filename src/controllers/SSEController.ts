@@ -38,23 +38,23 @@ class SSEController {
         while (true) {
             if (!!SSEController.subscriberEntities && Object.keys(SSEController.subscriberEntities).length) {
                 console.log(`Broadcasting events to ${Object.keys(SSEController.subscriberEntities).length} client(s)`)
-                await ((livePool: sql.ConnectionPool, subscriberEntities: any): Promise<void> => {
-                    return new Promise((resolve, reject) => {
-                        livePool.connect().then(async function(pool: sql.ConnectionPool) {
-                            const fetchedIds = await SAPEventListener.getFetchedIdsToRefresh(pool, true);
-                            for (const id in subscriberEntities) {
-                                if (Object.prototype.hasOwnProperty.call(SSEController.subscriberEntities, id)) {
-                                    const response = SSEController.subscriberEntities[id];
-                                    response.write(`data: ${JSON.stringify({ignorable: false, fetchedIdsToProcess: fetchedIds})}\n\n`)
-                                }
-                            }
-                            resolve();
-                        }).catch(function (err) {
-                            console.error('Error creating connection pool', err)
-                            reject();
-                        });
-                    })
-                })(SAPEventListener.livePool, SSEController.subscriberEntities);
+                // await ((livePool: sql.ConnectionPool, subscriberEntities: any): Promise<void> => {
+                //     return new Promise((resolve, reject) => {
+                //         livePool.connect().then(async function(pool: sql.ConnectionPool) {
+                //             const fetchedIds = await SAPEventListener.getFetchedIdsToRefresh(pool, true);
+                //             for (const id in subscriberEntities) {
+                //                 if (Object.prototype.hasOwnProperty.call(SSEController.subscriberEntities, id)) {
+                //                     const response = SSEController.subscriberEntities[id];
+                //                     response.write(`data: ${JSON.stringify({ignorable: false, fetchedIdsToProcess: fetchedIds})}\n\n`)
+                //                 }
+                //             }
+                //             resolve();
+                //         }).catch(function (err) {
+                //             console.error('Error creating connection pool', err)
+                //             reject();
+                //         });
+                //     })
+                // })(SAPEventListener.livePool, SSEController.subscriberEntities);
             } else {
                 console.log('No clients connected')
             }
