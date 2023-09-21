@@ -172,80 +172,12 @@ export class SAPEventListener {
                 NOT EXISTS(SELECT 1 FROM PCTP_UNIFIED WITH(NOLOCK) WHERE U_BookingNumber = head.ItemCode)
             )
         `, queryPromiseCallback) as Promise<EventId[]>
-        // const dupEvent: Promise<EventId[]> = queryPromise(pool, `
-        //     SELECT Z.id, Z.serial FROM (
-        //         SELECT 
-        //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-        //         FROM SUMMARY_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //         UNION
-        //         SELECT 
-        //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-        //         FROM POD_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //         UNION
-        //         SELECT 
-        //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-        //         FROM BILLING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //         UNION
-        //         SELECT 
-        //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-        //         FROM TP_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //         UNION
-        //         SELECT 
-        //             U_BookingNumber AS id,
-        //             CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
-        //         FROM PRICING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //     ) Z
-        //     LEFT JOIN
-        //     (
-        //         SELECT X.id,
-        //         CONCAT(CASE
-        //                 WHEN (SELECT COUNT(*) FROM [@PCTP_POD] WITH(NOLOCK) WHERE U_BookingNumber = X.id) > 1 THEN 'POD '
-        //                 ELSE ''
-        //             END,
-        //             CASE
-        //                 WHEN (SELECT COUNT(*) FROM [@PCTP_BILLING] WITH(NOLOCK) WHERE U_BookingId = X.id) > 1 THEN 'BILLING '
-        //                 ELSE ''
-        //             END,
-        //             CASE
-        //                 WHEN (SELECT COUNT(*) FROM [@PCTP_TP] WITH(NOLOCK) WHERE U_BookingId = X.id) > 1 THEN 'TP '
-        //                 ELSE ''
-        //             END,
-        //             CASE
-        //                 WHEN (SELECT COUNT(*) FROM [@PCTP_PRICING] WITH(NOLOCK) WHERE U_BookingId = X.id) > 1 THEN 'PRICING '
-        //                 ELSE ''
-        //             END) AS DuplicateInMainTable
-        //         FROM (SELECT 
-        //                 U_BookingNumber as id
-        //             FROM SUMMARY_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //             UNION
-        //             SELECT 
-        //                 U_BookingNumber as id
-        //             FROM POD_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //             UNION
-        //             SELECT 
-        //                 U_BookingNumber as id
-        //             FROM BILLING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //             UNION
-        //             SELECT 
-        //                 U_BookingNumber as id
-        //             FROM TP_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //             UNION
-        //             SELECT 
-        //                 U_BookingNumber as id
-        //             FROM PRICING_EXTRACT WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
-        //         ) X
-        //         WHERE X.id IS NOT NULL
-        //     ) Y ON Z.id = Y.id
-        //     WHERE Y.id IS NOT NULL 
-        //     AND (
-        //         Y.DuplicateInMainTable = '' 
-        //         OR Y.DuplicateInMainTable IS NULL
-        //     )
-        // `, queryPromiseCallback) as Promise<EventId[]>
+        const dupEvent: Promise<EventId[]> = queryPromise(pool, `
+            SELECT 
+                U_BookingNumber AS id,
+                CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+            FROM PCTP_UNIFIED WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
+        `, queryPromiseCallback) as Promise<EventId[]>
         // const sbdiEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         SE.U_BookingNumber as id,
@@ -460,7 +392,7 @@ export class SAPEventListener {
                 soEvent, 
                 arEvent, 
                 bnEvent, 
-                // dupEvent, 
+                dupEvent, 
                 // sbdiEvent, 
                 // bvnrEvent,
                 // tvnrEvent,
