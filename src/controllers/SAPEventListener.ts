@@ -386,7 +386,7 @@ export class SAPEventListener {
                 WHERE U_BookingNumber IS NOT NULL AND (U_PTFNo IS NULL OR U_PTFNo = '')
             ) AND POD.U_BookingNumber IS NOT NULL
         `, queryPromiseCallback) as Promise<EventId[]>
-        const customEvent: Promise<EventId[]> = queryPromise(pool, `
+        const missingEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT 
                 U_BookingNumber AS id,
                 CONCAT('MISSING-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
@@ -395,8 +395,6 @@ export class SAPEventListener {
                 SELECT U_BookingNumber 
                 FROM PCTP_UNIFIED WITH(NOLOCK)
             )
-            AND CAST(U_BookingDate AS DATE) >= CAST('2023-07-01' AS DATE)
-            AND CAST(U_BookingDate AS DATE) <= CAST('2023-07-31' AS DATE)
         `, queryPromiseCallback) as Promise<EventId[]>
         return new Promise((resolve2, reject2) => {
             Promise.all([
@@ -411,7 +409,7 @@ export class SAPEventListener {
                 // bpdiEvent,
                 // tpdiEvent,
                 ptfEvent,
-                customEvent,
+                missingEvent,
             ]).then(async eventIdsArrs => {
                 // throw 'Custom Error';
                 let tmpFetchedIds: EventId[] = [];
