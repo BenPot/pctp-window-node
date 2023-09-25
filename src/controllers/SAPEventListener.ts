@@ -5,6 +5,7 @@ import { StorageFactory } from '../factory/StorageFactory';
 import { PersistedStorge } from '../factory/storage-interface';
 import JSONUtil from '../utils/JSONUtil';
 import ArrayUtil from '../utils/ArrayUtil';
+import SSEController from './SSEController';
 
 export class SAPEventListener {
     public static freshStart: boolean = true;
@@ -386,7 +387,7 @@ export class SAPEventListener {
                 WHERE U_BookingNumber IS NOT NULL AND (U_PTFNo IS NULL OR U_PTFNo = '')
             ) AND POD.U_BookingNumber IS NOT NULL
         `, queryPromiseCallback) as Promise<EventId[]>
-        const customEvent: Promise<EventId[]> = queryPromise(pool, `
+        const missingEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT 
                 U_BookingNumber AS id,
                 CONCAT('MISSING-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
@@ -395,8 +396,6 @@ export class SAPEventListener {
                 SELECT U_BookingNumber 
                 FROM PCTP_UNIFIED WITH(NOLOCK)
             )
-            AND CAST(U_BookingDate AS DATE) >= CAST('2023-07-01' AS DATE)
-            AND CAST(U_BookingDate AS DATE) <= CAST('2023-07-31' AS DATE)
         `, queryPromiseCallback) as Promise<EventId[]>
         return new Promise((resolve2, reject2) => {
             Promise.all([
@@ -411,7 +410,7 @@ export class SAPEventListener {
                 // bpdiEvent,
                 // tpdiEvent,
                 ptfEvent,
-                customEvent,
+                missingEvent,
             ]).then(async eventIdsArrs => {
                 // throw 'Custom Error';
                 let tmpFetchedIds: EventId[] = [];
@@ -448,6 +447,7 @@ export class SAPEventListener {
         for (const eventId of fetchedIds as EventId[]) {
             const { id, serial } = eventId;
             if (processedIdsStorage.includes(`${id}-${serial}`)) continue;
+            if (fetchedIdsToProcess.some(e => e.id === id)) continue;
             fetchedIdsToProcess.push(eventId);
         }
         if (!!fetchedIdsToProcess) console.log('fetchedIdsToProcess length: ', fetchedIdsToProcess.length)
@@ -477,9 +477,11 @@ export class SAPEventListener {
                 console.log(`remaining... ${Math.abs(fetchedIdsToProcessLength)}`)
             }
         } else {
+            let copyFetchedIdsToProcess = [...fetchedIdsToProcess]
             for (const { id, serial } of fetchedIdsToProcess) {
                 // prioritizing adhocs
                 // if (!!SAPEventListener.newAdhocIds && SAPEventListener.newAdhocIds.)
+                SSEController.notifySubscribers(copyFetchedIdsToProcess);
                 timer.reset();
                 console.log(`processing... ${id}-${serial}`, (new Date()).toString())
                 if (await this.refreshIds(livePool, [id])) {
@@ -489,9 +491,11 @@ export class SAPEventListener {
                 } else {
                     console.log(`FAILED! ${id}-${serial}`, (new Date()).toString())
                 }
+                copyFetchedIdsToProcess = copyFetchedIdsToProcess.filter(e => e.id !== id);
                 console.log(`elapsed time... ${timer.getElapsedTime()} sec`);
                 console.log(`remaining... ${--fetchedIdsToProcessLength}`)
             }
+            SSEController.notifySubscribers([]);
         }
         if (!!processedIdsStorage) await SAPEventListener.processedIdStorage.set(processedIdsStorage);
         SAPEventListener.newProcessedIds.length = 0
