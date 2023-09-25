@@ -61,6 +61,20 @@ class SSEController {
             await TimeUtil.timeout(2000);
         }
     }
+
+    public async notifySubscribers(fetchedIds: EventId[]) {
+        try {
+            console.log(`Notifying ${Object.keys(SSEController.subscriberEntities).length} client(s)`)
+            for (const id in SSEController.subscriberEntities) {
+                if (Object.prototype.hasOwnProperty.call(SSEController.subscriberEntities, id)) {
+                    const response = SSEController.subscriberEntities[id];
+                    response.write(`data: ${JSON.stringify({ignorable: false, fetchedIdsToProcess: fetchedIds})}\n\n`)
+                }
+            } 
+        } catch (error) {
+            console.log(error)
+        }
+    }
 }
 
 export default (new SSEController()) as SSEController;
