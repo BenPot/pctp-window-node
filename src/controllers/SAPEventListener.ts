@@ -19,23 +19,34 @@ export class SAPEventListener {
     private monitoringTime: number = (new Date()).setHours(0,0,0,0);
     constructor(livePool: sql.ConnectionPool) {
         SAPEventListener.livePool = livePool;
-        SAPEventListener.storageFactory = new StorageFactory('sapEventListener');
+        while (true) {
+            try {
+                SAPEventListener.storageFactory = new StorageFactory('sapEventListener');
+                break;
+            } catch (error) {
+                console.log('error on storage creation...', error)
+            }
+            console.log('retry storage creation...');
+            (async ():Promise<void> => new Promise(async resolve => { await TimeUtil.timeout(this.timeOut); resolve(); }))()
+        }
         SAPEventListener.storageFactory.init().then(res => {
             SAPEventListener.storageFactory.factory<string>('processedIds', []).then(storage => {
                 SAPEventListener.processedIdStorage = storage;
                 console.log(`SAPEventListener.processedIdStorage has been set.`)
-            })
-        })
+            }).catch(err => console.log('error on storage creation...', err))
+        }).catch(err => console.log('error on storage creation...', err))
     }
     public async run() {
         if (process.env.ENV !== 'prod') {
             while (true) {
-                const fetchedIds: EventId[] = [];
-                const testEventIds: EventId[] | null = JSONUtil.parseObjectFromFile<EventId[]>('./test_data/event_ids.json');
-                if (!!testEventIds) {
-                    testEventIds.forEach(eventId => fetchedIds.push(eventId as EventId));
-                    const connectionPool: sql.ConnectionPool = await SAPEventListener.livePool.connect();
-                    if (!!fetchedIds) await this.processFetchedIds(connectionPool, fetchedIds);
+                if (!!SAPEventListener.processedIdStorage) {
+                    const fetchedIds: EventId[] = [];
+                    const testEventIds: EventId[] | null = JSONUtil.parseObjectFromFile<EventId[]>('./test_data/event_ids.json');
+                    if (!!testEventIds) {
+                        testEventIds.forEach(eventId => fetchedIds.push(eventId as EventId));
+                        const connectionPool: sql.ConnectionPool = await SAPEventListener.livePool.connect();
+                        if (!!fetchedIds) await this.processFetchedIds(connectionPool, fetchedIds);
+                    }
                 }
                 await TimeUtil.timeout(this.timeOut);
             }
@@ -50,13 +61,14 @@ export class SAPEventListener {
                         }
                         await ((livePool: sql.ConnectionPool, sapEventListener: SAPEventListener): Promise<void> => {
                             let fetchedIds: EventId[] = [];
-                            return new Promise(resolve1 => {
+                            return new Promise((resolve1, reject1) => {
                                 livePool.connect().then(async function(pool: sql.ConnectionPool) {
                                     fetchedIds = await SAPEventListener.getFetchedIdsToRefresh(pool);
                                     if (!!fetchedIds) await sapEventListener.processFetchedIds(pool, fetchedIds);
                                     resolve1()
                                 }).catch(function (err) {
                                     console.error('Error creating connection pool', err)
+                                    reject1();
                                 });
                             })
                         })(SAPEventListener.livePool, this);
@@ -97,8 +109,8 @@ export class SAPEventListener {
             FROM (
             SELECT DocEntry, DocNum, U_PVNo, UpdateDate, UpdateTS
             FROM OPCH WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(GETDATE() AS date)
-            OR CAST(UpdateDate AS date) = CAST(GETDATE() AS date)
+            WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+            OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
             ) head
             LEFT JOIN (
                 SELECT DocEntry, ItemCode
@@ -130,8 +142,8 @@ export class SAPEventListener {
             FROM (
             SELECT DocEntry, DocNum, UpdateDate, UpdateTS
             FROM ORDR WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(GETDATE() AS date)
-            OR CAST(UpdateDate AS date) = CAST(GETDATE() AS date)
+            WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+            OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
             ) head
             LEFT JOIN (
                 SELECT DocEntry, ItemCode
@@ -146,8 +158,8 @@ export class SAPEventListener {
             FROM (
             SELECT DocEntry, DocNum, UpdateDate, UpdateTS
             FROM OINV WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(GETDATE() AS date)
-            OR CAST(UpdateDate AS date) = CAST(GETDATE() AS date)
+            WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+            OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
             ) head
             LEFT JOIN (
                 SELECT DocEntry, ItemCode
@@ -164,7 +176,7 @@ export class SAPEventListener {
                 FROM OITM WITH(NOLOCK) 
             ) head
             WHERE head.ItemCode IS NOT NULL
-            AND CAST(head.CreateDate AS date) = CAST(GETDATE() AS date)
+            AND CAST(head.CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
             AND (
                 EXISTS(SELECT 1 FROM [@PCTP_POD] WITH(NOLOCK) WHERE U_BookingNumber = head.ItemCode)
                 OR EXISTS(SELECT 1 FROM [@PCTP_PRICING] WITH(NOLOCK) WHERE U_BookingId = head.ItemCode)
@@ -176,13 +188,13 @@ export class SAPEventListener {
         const dupEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT 
                 U_BookingNumber AS id,
-                CONCAT('DUP-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                CONCAT('DUP-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
             FROM PCTP_UNIFIED WITH(NOLOCK) GROUP BY U_BookingNumber HAVING COUNT(*) > 1
         `, queryPromiseCallback) as Promise<EventId[]>
         // const sbdiEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         SE.U_BookingNumber as id,
-        //         CONCAT('SBDI-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('SBDI-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingNumber, U_BillingStatus, U_InvoiceNo, U_PODSONum, U_ARDocNum
         //         FROM SUMMARY_EXTRACT WITH(NOLOCK)
@@ -248,7 +260,7 @@ export class SAPEventListener {
         // const bvnrEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         T0.U_BookingNumber as id,
-        //         CONCAT('B-TBVNR-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('B-TBVNR-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingNumber, U_PODStatusDetail
         //         FROM [dbo].[@PCTP_POD] WITH(NOLOCK)
@@ -262,7 +274,7 @@ export class SAPEventListener {
         // const tvnrEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         T0.U_BookingNumber as id,
-        //         CONCAT('T-TBVNR-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('T-TBVNR-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
         //     FROM [dbo].[@PCTP_POD] T0 WITH(NOLOCK)
         //     WHERE 1=1
         //     AND (CAST(T0.U_PODStatusDetail as nvarchar(100)) LIKE '%Verified%')
@@ -273,7 +285,7 @@ export class SAPEventListener {
         // const bpdiEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         BE.U_BookingId AS id,
-        //         CONCAT('B-BTPDI-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('B-BTPDI-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingId, U_GrossInitialRate, U_Demurrage, U_AddCharges
         //         FROM BILLING_EXTRACT WITH(NOLOCK)
@@ -303,7 +315,7 @@ export class SAPEventListener {
         // const tpdiEvent: Promise<EventId[]> = queryPromise(pool, `
         //     SELECT
         //         TE.U_BookingId AS id,
-        //         CONCAT('T-BTPDI-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+        //         CONCAT('T-BTPDI-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
         //     FROM (
         //         SELECT U_BookingId, U_GrossTruckerRates, U_GrossTruckerRatesN, U_RateBasis, U_Demurrage,
         //         U_AddtlDrop, U_BoomTruck, U_Manpower, U_BackLoad, U_Addtlcharges, U_DemurrageN, U_AddtlChargesN
@@ -375,7 +387,7 @@ export class SAPEventListener {
         const ptfEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT
                 POD.U_BookingNumber as id,
-                CONCAT('PTF-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                CONCAT('PTF-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
             FROM (
                 SELECT U_BookingNumber, U_PTFNo
                 FROM [dbo].[@PCTP_POD] WITH(NOLOCK)
@@ -390,7 +402,7 @@ export class SAPEventListener {
         const missingEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT 
                 U_BookingNumber AS id,
-                CONCAT('MISSING-', FORMAT(GETDATE(), 'yyyyMMddhhmmss')) AS serial
+                CONCAT('MISSING-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
             FROM [@PCTP_POD] WITH(NOLOCK) 
             WHERE U_BookingNumber NOT IN (
                 SELECT U_BookingNumber 
@@ -427,7 +439,16 @@ export class SAPEventListener {
                     }
                 }
                 console.log(`fetch elapsed time... ${timer.getElapsedTime()} sec for ${fetchedIds.length} ids`);
-                resolve2(fetchedIds);
+                resolve2(!!!process.env.SIMULATE_DATE || !!!process.env.SIMULATE_SIZE ? fetchedIds :
+                    ((fetchedIds: EventId[], simulateSize: number): EventId[] => {
+                        if (isNaN(simulateSize) || !!!simulateSize) return fetchedIds;
+                        const trimmedFetchedIds: EventId[] = [];
+                        for (let index = 0; index < simulateSize; index++) {
+                            trimmedFetchedIds.push(fetchedIds[index]);
+                        }
+                        return trimmedFetchedIds;
+                    })(fetchedIds, parseInt(process.env.SIMULATE_SIZE || ''))
+                );
             }).catch(err => {
                 console.log('events error encountered...', err)
                 reject2(err);
@@ -580,13 +601,18 @@ export class SAPEventListener {
                     }
                     resolve(true);
                 } else {
-                    pool.query(query, async (err: Error | undefined) => {
-                        if (err) {
-                            console.log('execute query error', err)
-                            resolve(false);
-                        }
-                        resolve(true);
-                    });
+                    try {
+                        pool.query(query, async (err: Error | undefined) => {
+                            if (err) {
+                                console.log('execute query error', err)
+                                resolve(false);
+                            }
+                            resolve(true);
+                        })
+                    } catch (error) {
+                        console.log('execute query error', error)
+                        resolve(false);
+                    }
                 }
             })
         })(pool)
