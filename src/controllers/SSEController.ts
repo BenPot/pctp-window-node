@@ -1,10 +1,6 @@
-import sql from 'mssql';
-import { StorageFactory } from "../factory/StorageFactory";
-import { PersistedStorge } from "../factory/storage-interface";
 import { Request, Response } from "express";
 import { v4 as uuidv4 } from 'uuid';
-import { EventId, Subscriber } from "../types/EventEntity";
-import { SAPEventListener } from "./SAPEventListener";
+import { EventId } from "../types/EventEntity";
 import TimeUtil from '../utils/TimeUtil';
 
 class SSEController {

@@ -1,8 +1,9 @@
 import storage, { LocalStorage } from 'node-persist';
 import { WebSocketStorage } from './storage-interface';
+import TimeUtil from '../utils/TimeUtil';
 
 export class StorageFactory {
-    private localStorage: LocalStorage;
+    private localStorage: LocalStorage | undefined;
     constructor(factoryName: string) {
         this.localStorage = storage.create({
             dir: `./storage/${factoryName}`,
@@ -21,14 +22,21 @@ export class StorageFactory {
             // if you setItem() multiple times to the same key, only the last one would be set, BUT the others would still resolve with the results of the last one, if you turn this to false, each one will execute, but might slow down the writing process.
             // writeQueueWriteOnlyLast: true
         });
-        this.localStorage.init();
     }
     public async init(): Promise<StorageFactory> {
-        await this.localStorage.init();
-        return this;
+        while (true) {
+            try {
+                await this.localStorage?.init();
+                return this;
+            } catch (error) {
+                console.log('storage factory init error', error)
+            }
+            console.log('init retry...')
+            await TimeUtil.timeout(3000);
+        }
     }
     public async factory<T>(key: string, initialValue: any): Promise<WebSocketStorage<T>> {
-        await this.localStorage.setItem(key, initialValue);
-        return (new WebSocketStorage<T>(this.localStorage, key));
+        await this.localStorage?.setItem(key, initialValue);
+        return (new WebSocketStorage<T>(<LocalStorage>this.localStorage, key));
     }
 }
