@@ -151,8 +151,8 @@ export class SAPEventListener {
                 LEFT JOIN OPCH T3 ON T1.DocEntry = T3.DocEntry
                 WHERE T0.Canceled <> 'Y' 
                 AND (
-                    CAST(T0.CreateDate AS date) = CAST(GETDATE() AS date)
-                    OR CAST(T0.UpdateDate AS date) = CAST(GETDATE() AS date)
+                    CAST(T0.CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+                    OR CAST(T0.UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
                 )
             ) OP
             WHERE UNI.U_BookingNumber IS NOT NULL AND UNI.U_BookingNumber <> ''
