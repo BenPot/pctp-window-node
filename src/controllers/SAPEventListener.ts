@@ -135,6 +135,32 @@ export class SAPEventListener {
             END OR TP.U_BookingNumber = line.ItemCode
             WHERE TP.U_BookingNumber IS NOT NULL
         `, queryPromiseCallback) as Promise<EventId[]>
+        const opEvent: Promise<EventId[]> = queryPromise(pool, `
+            SELECT
+                UNI.U_BookingNumber AS id,
+                CONCAT('OP', OP.DocNum, '-', FORMAT(OP.UpdateDate, 'yyyyMMdd'), OP.UpdateTS) AS serial
+            FROM (
+            SELECT U_BookingNumber, tp_U_DocNum, U_Paid
+            FROM PCTP_UNIFIED WITH(NOLOCK)
+            ) UNI,
+            (
+                SELECT T0.DocNum, T0.UpdateDate, T0.UpdateTS, T3.DocNum AS ApDocNum
+                FROM OVPM T0 WITH(NOLOCK)
+                INNER JOIN VPM2 T1 ON T1.DocNum = T0.DocEntry
+                LEFT JOIN VPM1 T2 ON T1.DocNum = T2.DocNum
+                LEFT JOIN OPCH T3 ON T1.DocEntry = T3.DocEntry
+                WHERE T0.Canceled <> 'Y' 
+                AND (
+                    CAST(T0.CreateDate AS date) = CAST(GETDATE() AS date)
+                    OR CAST(T0.UpdateDate AS date) = CAST(GETDATE() AS date)
+                )
+            ) OP
+            WHERE UNI.U_BookingNumber IS NOT NULL AND UNI.U_BookingNumber <> ''
+            AND (
+                OP.ApDocNum IN (SELECT RTRIM(LTRIM(value)) FROM STRING_SPLIT(UNI.tp_U_DocNum, ','))
+                OR OP.ApDocNum IN (SELECT RTRIM(LTRIM(value)) FROM STRING_SPLIT(UNI.U_Paid, ','))
+            )
+        `, queryPromiseCallback) as Promise<EventId[]>
         const soEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT
                 line.ItemCode AS id,
@@ -412,6 +438,7 @@ export class SAPEventListener {
         return new Promise((resolve2, reject2) => {
             Promise.all([
                 apEvent, 
+                opEvent,
                 soEvent, 
                 arEvent, 
                 bnEvent, 
