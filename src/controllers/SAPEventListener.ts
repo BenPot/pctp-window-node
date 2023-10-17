@@ -193,6 +193,26 @@ export class SAPEventListener {
             ) line ON head.DocEntry = line.DocEntry
             WHERE line.ItemCode IS NOT NULL
         `, queryPromiseCallback) as Promise<EventId[]>
+        const arNrEvent: Promise<EventId[]> = queryPromise(pool, `
+            SELECT
+                line.ItemCode AS id,
+                CONCAT('AR', head.DocNum, '-NR-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
+            FROM (
+            SELECT DocEntry, DocNum, UpdateDate, UpdateTS
+            FROM OINV WITH(NOLOCK)
+            WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+            OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+            AND CANCELED = 'N'
+            ) head
+            LEFT JOIN (
+                SELECT DocEntry, ItemCode
+                FROM INV1 WITH(NOLOCK)
+            ) line ON head.DocEntry = line.DocEntry
+            WHERE line.ItemCode IS NOT NULL
+            AND line.ItemCode IN (SELECT U_BookingNumber FROM PCTP_UNIFIED WITH(NOLOCK))
+            AND (SELECT COUNT(ItemCode) FROM INV1 WITH(NOLOCK) WHERE DocEntry = head.DocEntry AND ItemCode IN (SELECT U_BookingNumber FROM PCTP_UNIFIED WITH(NOLOCK))) > 
+            (SELECT COUNT(U_BookingNumber) FROM PCTP_UNIFIED WITH(NOLOCK) WHERE head.DocNum IN (SELECT RTRIM(LTRIM(value)) FROM STRING_SPLIT(U_ARDocNum, ',')))
+        `, queryPromiseCallback) as Promise<EventId[]>
         const bnEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT 
                 head.ItemCode AS id,
@@ -440,7 +460,8 @@ export class SAPEventListener {
                 apEvent, 
                 opEvent,
                 soEvent, 
-                arEvent, 
+                arEvent,
+                arNrEvent, 
                 bnEvent, 
                 dupEvent, 
                 // sbdiEvent, 
@@ -471,6 +492,7 @@ export class SAPEventListener {
                         if (isNaN(simulateSize) || !!!simulateSize) return fetchedIds;
                         const trimmedFetchedIds: EventId[] = [];
                         for (let index = 0; index < simulateSize; index++) {
+                            if (!!!fetchedIds[index]) continue;
                             trimmedFetchedIds.push(fetchedIds[index]);
                         }
                         return trimmedFetchedIds;
