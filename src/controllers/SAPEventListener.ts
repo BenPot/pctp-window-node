@@ -194,24 +194,23 @@ export class SAPEventListener {
             WHERE line.ItemCode IS NOT NULL
         `, queryPromiseCallback) as Promise<EventId[]>
         const arNrEvent: Promise<EventId[]> = queryPromise(pool, `
-            SELECT
-                line.ItemCode AS id,
-                CONCAT('AR', head.DocNum, '-NR-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
-            FROM (
-            SELECT DocEntry, DocNum, UpdateDate, UpdateTS
-            FROM OINV WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
-            OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
-            AND CANCELED = 'N'
-            ) head
-            LEFT JOIN (
-                SELECT DocEntry, ItemCode
-                FROM INV1 WITH(NOLOCK)
-            ) line ON head.DocEntry = line.DocEntry
-            WHERE line.ItemCode IS NOT NULL
-            AND line.ItemCode IN (SELECT U_BookingNumber FROM PCTP_UNIFIED WITH(NOLOCK))
-            AND (SELECT COUNT(ItemCode) FROM INV1 WITH(NOLOCK) WHERE DocEntry = head.DocEntry AND ItemCode IN (SELECT U_BookingNumber FROM PCTP_UNIFIED WITH(NOLOCK))) > 
-            (SELECT COUNT(U_BookingNumber) FROM PCTP_UNIFIED WITH(NOLOCK) WHERE head.DocNum IN (SELECT RTRIM(LTRIM(value)) FROM STRING_SPLIT(U_ARDocNum, ',')))
+            SELECT DISTINCT
+                U_BookingNumber as id, 
+                --U_ARDocNum,
+                CONCAT('AR', 
+                SUBSTRING((
+                    SELECT CONCAT(', ', head.DocNum) AS [text()] 
+                    FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N'
+                    FOR XML PATH (''), TYPE).value('text()[1]','nvarchar(max)'), 2, 1000
+                ), '-NR-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
+            FROM PCTP_UNIFIED WITH(NOLOCK)
+            WHERE 1=1
+            AND EXISTS(SELECT 1 FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N')
+            AND (
+                U_ARDocNum IS NULL
+                OR U_ARDocNum = ''
+                OR (SELECT COUNT(value) FROM STRING_SPLIT(U_ARDocNum, ',')) < (SELECT COUNT(DocNum) FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N')
+            )
         `, queryPromiseCallback) as Promise<EventId[]>
         const bnEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT 
