@@ -166,16 +166,33 @@ export class SAPEventListener {
                 line.ItemCode AS id,
                 CONCAT('SO', head.DocNum, '-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
             FROM (
-            SELECT DocEntry, DocNum, UpdateDate, UpdateTS
-            FROM ORDR WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
-            OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+                SELECT DocEntry, DocNum, UpdateDate, UpdateTS
+                FROM ORDR WITH(NOLOCK)
+                WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+                OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
             ) head
             LEFT JOIN (
                 SELECT DocEntry, ItemCode
                 FROM RDR1 WITH(NOLOCK)
             ) line ON head.DocEntry = line.DocEntry
             WHERE line.ItemCode IS NOT NULL
+
+            UNION
+
+            SELECT
+                BILLING.U_BookingId as id,
+                CONCAT('SO', head.DocNum, '-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
+            FROM (
+                SELECT DocEntry, DocNum, UpdateDate, UpdateTS
+                FROM ORDR WITH(NOLOCK)
+                WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+                OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
+            ) head
+            LEFT JOIN (
+                SELECT U_PODSONum, U_BookingId
+                FROM PCTP_UNIFIED WITH(NOLOCK)
+            ) BILLING ON head.DocNum = BILLING.U_PODSONum
+            WHERE BILLING.U_BookingId IS NOT NULL
         `, queryPromiseCallback) as Promise<EventId[]>
         const arEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT
