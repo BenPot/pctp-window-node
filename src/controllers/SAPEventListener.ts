@@ -226,7 +226,12 @@ export class SAPEventListener {
             AND (
                 U_ARDocNum IS NULL
                 OR U_ARDocNum = ''
-                OR (SELECT COUNT(value) FROM STRING_SPLIT(U_ARDocNum, ',')) < (SELECT COUNT(DocNum) FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N')
+                OR ((SELECT COUNT(value) FROM STRING_SPLIT(U_ARDocNum, ',')) < (SELECT COUNT(DocNum) FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N')
+                AND SUBSTRING((
+                    SELECT DISTINCT CONCAT(', ', head.DocNum) AS [text()] 
+                    FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N'
+                    FOR XML PATH (''), TYPE).value('text()[1]','nvarchar(max)'), 2, 1000
+                ) <> U_ARDocNum)
             )
         `, queryPromiseCallback) as Promise<EventId[]>
         const bnEvent: Promise<EventId[]> = queryPromise(pool, `
@@ -493,6 +498,13 @@ export class SAPEventListener {
                 for (const eventIds of eventIdsArrs) {
                     tmpFetchedIds = [ ...tmpFetchedIds, ...eventIds ]
                 }
+                tmpFetchedIds.sort((a, b) => {
+                    const aTs = a?.serial?.split('-')?.pop()
+                    const bTs = b?.serial?.split('-')?.pop()
+                    if (!!!aTs || !!!bTs) return 0;
+                    if (Number(aTs) > Number(bTs)) return -1
+                    else return 1
+                })
                 const processedIds: string[] = await SAPEventListener.processedIdStorage.get();
                 for (const eventId of tmpFetchedIds) {
                     if (!fetchedIds.some(({ id }) => id === eventId.id) 
