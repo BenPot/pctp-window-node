@@ -211,24 +211,28 @@ export class SAPEventListener {
             WHERE line.ItemCode IS NOT NULL
         `, queryPromiseCallback) as Promise<EventId[]>
         const arNrEvent: Promise<EventId[]> = queryPromise(pool, `
-            SELECT
-                line.ItemCode AS id,
-                CONCAT('AR', head.DocNum, '-NR-', FORMAT(head.UpdateDate, 'yyyyMMdd'), head.UpdateTS) AS serial
-            FROM (
-            SELECT DocEntry, DocNum, UpdateDate, UpdateTS
-            FROM OINV WITH(NOLOCK)
-            WHERE CAST(CreateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
-            OR CAST(UpdateDate AS date) = CAST(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'} AS date)
-            AND CANCELED = 'N'
-            ) head
-            LEFT JOIN (
-                SELECT DocEntry, ItemCode
-                FROM INV1 WITH(NOLOCK)
-            ) line ON head.DocEntry = line.DocEntry
-            WHERE line.ItemCode IS NOT NULL
-            AND line.ItemCode IN (SELECT U_BookingNumber FROM PCTP_UNIFIED WITH(NOLOCK))
-            AND (SELECT COUNT(ItemCode) FROM INV1 WITH(NOLOCK) WHERE DocEntry = head.DocEntry AND ItemCode IN (SELECT U_BookingNumber FROM PCTP_UNIFIED WITH(NOLOCK))) > 
-            (SELECT COUNT(U_BookingNumber) FROM PCTP_UNIFIED WITH(NOLOCK) WHERE head.DocNum IN (SELECT RTRIM(LTRIM(value)) FROM STRING_SPLIT(U_ARDocNum, ',')))
+            SELECT DISTINCT
+                U_BookingNumber as id, 
+                --U_ARDocNum,
+                CONCAT('AR', 
+                SUBSTRING((
+                    SELECT CONCAT(', ', head.DocNum) AS [text()] 
+                    FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N'
+                    FOR XML PATH (''), TYPE).value('text()[1]','nvarchar(max)'), 2, 1000
+                ), '-NR-', FORMAT(${!!process.env.SIMULATE_DATE ? `CAST('${process.env.SIMULATE_DATE}' AS DATE)` : 'GETDATE()'}, 'yyyyMMddhhmmss')) AS serial
+            FROM PCTP_UNIFIED WITH(NOLOCK)
+            WHERE 1=1
+            AND EXISTS(SELECT 1 FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N')
+            AND (
+                U_ARDocNum IS NULL
+                OR U_ARDocNum = ''
+                OR ((SELECT COUNT(value) FROM STRING_SPLIT(U_ARDocNum, ',')) < (SELECT COUNT(DocNum) FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N')
+                AND SUBSTRING((
+                    SELECT DISTINCT CONCAT(', ', head.DocNum) AS [text()] 
+                    FROM INV1 line LEFT JOIN OINV head ON head.DocEntry = line.DocEntry WHERE line.ItemCode = U_BookingNumber AND CANCELED = 'N'
+                    FOR XML PATH (''), TYPE).value('text()[1]','nvarchar(max)'), 2, 1000
+                ) <> U_ARDocNum)
+            )
         `, queryPromiseCallback) as Promise<EventId[]>
         const bnEvent: Promise<EventId[]> = queryPromise(pool, `
             SELECT 
@@ -494,6 +498,13 @@ export class SAPEventListener {
                 for (const eventIds of eventIdsArrs) {
                     tmpFetchedIds = [ ...tmpFetchedIds, ...eventIds ]
                 }
+                tmpFetchedIds.sort((a, b) => {
+                    const aTs = a?.serial?.split('-')?.pop()
+                    const bTs = b?.serial?.split('-')?.pop()
+                    if (!!!aTs || !!!bTs) return 0;
+                    if (Number(aTs) > Number(bTs)) return -1
+                    else return 1
+                })
                 const processedIds: string[] = await SAPEventListener.processedIdStorage.get();
                 for (const eventId of tmpFetchedIds) {
                     if (!fetchedIds.some(({ id }) => id === eventId.id) 
